@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"sync"
 )
@@ -37,17 +38,18 @@ func (t *Server) ListenMessager() {
 
 		//将msg发送给全部的在线User
 		t.mapLock.Lock()
-		for _, cli := range t.OnlineMap { //for loop value, which are client obj 
+		//for loop value, which are client obj 
+		for _, cli := range t.OnlineMap { 
 			cli.C <- msg
 		}
 		t.mapLock.Unlock()
 	}
 }
 
-func (this *Server) BroadCast(user *User, msg string) {
+func (t *Server) BroadCast(user *User, msg string) {
 	sendMsg := "[" + user.Addr + "]" + user.Name + ":" + msg
 
-	this.Message <- sendMsg
+	t.Message <- sendMsg
 }
 
 func (t *Server) Handler(conn net.Conn) {
@@ -61,6 +63,28 @@ func (t *Server) Handler(conn net.Conn) {
 	t.mapLock.Unlock()
 
 	t.BroadCast(user, " is online")
+
+	//get client side message
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := conn.Read(buf)
+			if n == 0 {
+				t.BroadCast(user, " is off line")
+				return
+			}
+
+			if err != nil && err != io.EOF {
+				fmt.Println("Conn Read err", err)
+				return
+			}
+
+			//get client message delete '\n'
+			msg := string(buf[:n-1])
+			//broadcast the message
+			t.BroadCast(user, msg)
+		}
+	}()
 
 	//set process state as blocked
 	select {}
