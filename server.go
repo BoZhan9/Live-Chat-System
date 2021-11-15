@@ -36,9 +36,8 @@ func (t *Server) ListenMessager() {
 	for {
 		msg := <-t.Message
 
-		//将msg发送给全部的在线User
 		t.mapLock.Lock()
-		//for loop value, which are client obj 
+		//for loop value, which are user obj 
 		for _, cli := range t.OnlineMap { 
 			cli.C <- msg
 		}
@@ -55,22 +54,17 @@ func (t *Server) BroadCast(user *User, msg string) {
 func (t *Server) Handler(conn net.Conn) {
 	//...tasks for current connection
 	//fmt.Println("Connection successful")
-	user := NewUser(conn)
+	user := NewUser(conn, t)
 
-	//when user is online, add to map
-	t.mapLock.Lock() //map thread-unsafe, add lock 
-	t.OnlineMap[user.Name] = user
-	t.mapLock.Unlock()
+	user.Online()
 
-	t.BroadCast(user, " is online")
-
-	//get client side message
+	//get user message
 	go func() {
 		buf := make([]byte, 4096)
 		for {
 			n, err := conn.Read(buf)
 			if n == 0 {
-				t.BroadCast(user, " is off line")
+				user.Offline()
 				return
 			}
 
@@ -79,10 +73,11 @@ func (t *Server) Handler(conn net.Conn) {
 				return
 			}
 
-			//get client message delete '\n'
+			//get user message delete '\n'
 			msg := string(buf[:n-1])
-			//broadcast the message
-			t.BroadCast(user, msg)
+
+			//user send message
+			user.DoMessage(msg)
 		}
 	}()
 
