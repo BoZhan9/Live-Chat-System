@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -46,7 +47,7 @@ func (t *Server) ListenMessager() {
 }
 
 func (t *Server) BroadCast(user *User, msg string) {
-	sendMsg := "[" + user.Addr + "]" + user.Name + ":" + msg
+	sendMsg := "[" + user.Addr + "]" + user.Name + ": " + msg
 
 	t.Message <- sendMsg
 }
@@ -57,6 +58,9 @@ func (t *Server) Handler(conn net.Conn) {
 	user := NewUser(conn, t)
 
 	user.Online()
+
+	//check if user still active
+	isLive := make(chan bool)
 
 	//get user message
 	go func() {
@@ -78,11 +82,30 @@ func (t *Server) Handler(conn net.Conn) {
 
 			//user send message
 			user.DoMessage(msg)
+
+			isLive <- true
 		}
 	}()
 
 	//set process state as blocked
-	select {}
+	for {
+		select {
+		case <-isLive:
+			//if user is active
+			//activate select and update timer
+
+		case <-time.After(time.Second * 10): //timer
+			//idle too long, time out
+			//force kick out user
+			user.SendMsg("* You are inactive for 20s auto leave the chat *\n")
+
+			close(user.C)
+			conn.Close()
+
+			//exit Handler
+			return //runtime.Goexit()
+		}
+	}
 }
 
 
