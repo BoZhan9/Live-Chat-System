@@ -53,9 +53,24 @@ func (t *User) Offline() {
 
 }
 
+func (t *User) SendMsg(msg string) {
+	t.conn.Write([]byte(msg))
+}
+
 //user send message
 func (t *User) DoMessage(msg string) {
-	t.server.BroadCast(t, msg)
+	//search who is online
+	if msg == "who" {
+		t.server.mapLock.Lock()
+		for _, user := range t.server.OnlineMap {
+			onlineMsg := "[" + user.Addr + "]" + user.Name + ":" + "Online...\n"
+			t.SendMsg(onlineMsg)
+		}
+		t.server.mapLock.Unlock()
+
+	} else {
+		t.server.BroadCast(t, msg)
+	}
 }
 
 //tap current user channel, once got message, directly send to user
