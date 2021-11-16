@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"net"
+	"os"
 )
 
 type Client struct {
@@ -34,12 +36,18 @@ func NewClient(serverIp string, serverPort int) *Client {
 	return client
 }
 
+//deal with server message, directly stdout
+func (client *Client) DealResponse() {
+	//once client.conn has message, copy to standard output, block listen
+	io.Copy(os.Stdout, client.conn)
+}
+
 func (client *Client) menu() bool {
 	var flag int
 
 	fmt.Println("1 Public chat")
 	fmt.Println("2 Pravite chat")
-	fmt.Println("3 Rename")
+	fmt.Println("3 Update name")
 	fmt.Println("0 Exit")
 
 	fmt.Scanln(&flag)
@@ -54,6 +62,88 @@ func (client *Client) menu() bool {
 
 }
 
+func (client *Client) SelectUsers() {
+	sendMsg := "who\n"
+	_, err := client.conn.Write([]byte(sendMsg))
+	if err != nil {
+		fmt.Println("conn Write err:", err)
+		return
+	}
+}
+
+func (client *Client) PrivateChat() {
+	var remoteName string
+	var chatMsg string
+
+	client.SelectUsers()
+	fmt.Println("* Please enter a username, type \"exit\" for exit *")
+	fmt.Scanln(&remoteName)
+
+	for remoteName != "exit" {
+		fmt.Println("* Please enter the content, type \"exit\" for exit *")
+		fmt.Scanln(&chatMsg)
+
+		for chatMsg != "exit" {
+			//消息不为空则发送
+			if len(chatMsg) != 0 {
+				sendMsg := "to " + remoteName + " " + chatMsg + "\n\n"
+				_, err := client.conn.Write([]byte(sendMsg))
+				if err != nil {
+					fmt.Println("conn Write err:", err)
+					break
+				}
+			}
+
+			chatMsg = ""
+			fmt.Println("* Please enter the content, type \"exit\" for exit *")
+			fmt.Scanln(&chatMsg)
+		}
+
+		client.SelectUsers()
+		fmt.Println("* Please enter a username, type \"exit\" for exit *")
+		fmt.Scanln(&remoteName)
+	}
+}
+
+func (client *Client) PublicChat() {
+	//Hint user to tpye in message
+	var chatMsg string
+
+	fmt.Println("* Please enter the content, type \"exit\" for exit *")
+	fmt.Scanln(&chatMsg)
+
+	for chatMsg != "exit" {
+		//send to if message is not empty
+		if len(chatMsg) != 0 {
+			sendMsg := chatMsg + "\n"
+			_, err := client.conn.Write([]byte(sendMsg))
+			if err != nil {
+				fmt.Println("conn Write err:", err)
+				break
+			}
+		}
+
+		chatMsg = ""
+		fmt.Println("* Please enter the content, type \"exit\" for exit *")
+		fmt.Scanln(&chatMsg)
+	}
+
+}
+
+func (client *Client) UpdateName() bool {
+
+	fmt.Println("* Type the new name: *")
+	fmt.Scanln(&client.Name)
+
+	sendMsg := "rename " + client.Name + "\n"
+	_, err := client.conn.Write([]byte(sendMsg))
+	if err != nil {
+		fmt.Println("conn.Write err:", err)
+		return false
+	}
+	return true
+}
+
 func (client *Client) Run() {
 	for client.flag != 0 {
 		for client.menu() != true {
@@ -62,13 +152,13 @@ func (client *Client) Run() {
 		//according to user's choice
 		switch client.flag {
 		case 1:
-			fmt.Println("Public chat")
+			client.PublicChat()
 			break
 		case 2:
-			fmt.Println("Private chat")
+			client.PrivateChat()
 			break
 		case 3:
-			fmt.Println("rename")
+			client.UpdateName()
 			break
 		}
 	}
@@ -92,6 +182,9 @@ func main() {
 		fmt.Println("* Fail to connect to server *")
 		return
 	}
+
+	//create a goroutine to deal with server message
+	go client.DealResponse()
 
 	fmt.Println("* Success to connect to server *")
 
