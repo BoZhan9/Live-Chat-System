@@ -62,7 +62,7 @@ func (t *User) SendMsg(msg string) {
 
 //user send message
 func (t *User) DoMessage(msg string) {
-	//search who is online
+	//search online user
 	if msg == "who" {
 		t.server.mapLock.Lock()
 		for _, user := range t.server.OnlineMap {
@@ -88,6 +88,31 @@ func (t *User) DoMessage(msg string) {
 			t.Name = newName
 			t.SendMsg("* You have updated name: " + t.Name + " *\n")
 		}
+
+	} else if len(msg) > 4 && msg[:3] == "to " {
+		//format:  to Brian Hello
+
+		//get receiver username
+		remoteName := strings.Split(msg, " ")[1]
+		if remoteName == "" {
+			t.SendMsg("* Format error, please use \"to Brian Hello\" *\n")
+			return
+		}
+
+		//get user object by username
+		remoteUser, ok := t.server.OnlineMap[remoteName]
+		if !ok {
+			t.SendMsg("* The user you want to send doesn't exist *\n")
+			return
+		}
+
+		//get message content, send to user obkect
+		content := strings.Split(msg, " ")[2]
+		if content == "" {
+			t.SendMsg("* No content detect, type again *\n")
+			return
+		}
+		remoteUser.SendMsg(t.Name + " said to you: " + content)
 
 	} else {
 		t.server.BroadCast(t, msg)

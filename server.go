@@ -31,14 +31,14 @@ func NewServer(ip string, port int) *Server {
 	return server
 }
 
-//tap message broadcast channel's goroutine
+//listen message broadcast channel's goroutine
 //once got message send to all online users
 func (t *Server) ListenMessager() {
 	for {
 		msg := <-t.Message
 
 		t.mapLock.Lock()
-		//for loop value, which are user obj 
+		//for loop value, which are user object 
 		for _, cli := range t.OnlineMap { 
 			cli.C <- msg
 		}
@@ -94,10 +94,10 @@ func (t *Server) Handler(conn net.Conn) {
 			//if user is active
 			//activate select and update timer
 
-		case <-time.After(time.Second * 10): //timer
+		case <-time.After(time.Second * 60): //timer
 			//idle too long, time out
 			//force kick out user
-			user.SendMsg("* You are inactive for 20s auto leave the chat *\n")
+			user.SendMsg("* You are inactive for 1 minutes auto leave the chat *\n")
 
 			close(user.C)
 			conn.Close()
@@ -120,7 +120,7 @@ func (t *Server) Start() {
 	//close listen socket
 	defer listener.Close()
 
-	//start a tap goroutine
+	//start a listen goroutine
 	go t.ListenMessager()
 
 	for {
