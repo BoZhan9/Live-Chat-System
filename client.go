@@ -11,6 +11,7 @@ type Client struct {
 	ServerPort int
 	Name string
 	conn net.Conn
+	flag int
 }
 
 func NewClient(serverIp string, serverPort int) *Client {
@@ -18,6 +19,7 @@ func NewClient(serverIp string, serverPort int) *Client {
 	client := &Client{
 		ServerIp: serverIp,
 		ServerPort: serverPort,
+		flag: 999,
 	}
 
 	//connect to server
@@ -30,6 +32,46 @@ func NewClient(serverIp string, serverPort int) *Client {
 	client.conn = conn
 
 	return client
+}
+
+func (client *Client) menu() bool {
+	var flag int
+
+	fmt.Println("1 Public chat")
+	fmt.Println("2 Pravite chat")
+	fmt.Println("3 Rename")
+	fmt.Println("0 Exit")
+
+	fmt.Scanln(&flag)
+
+	if flag >= 0 && flag <= 3 {
+		client.flag = flag
+		return true
+	} else {
+		fmt.Println("* Please enter a valid number (0-3) *")
+		return false
+	}
+
+}
+
+func (client *Client) Run() {
+	for client.flag != 0 {
+		for client.menu() != true {
+		}
+
+		//according to user's choice
+		switch client.flag {
+		case 1:
+			fmt.Println("Public chat")
+			break
+		case 2:
+			fmt.Println("Private chat")
+			break
+		case 3:
+			fmt.Println("rename")
+			break
+		}
+	}
 }
 
 var serverIp string
@@ -54,6 +96,6 @@ func main() {
 	fmt.Println("* Success to connect to server *")
 
 	//start client side
-	//client.Run()
-	select {}
+	client.Run()
+
 }
