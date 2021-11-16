@@ -5,22 +5,21 @@ import (
 	"io"
 	"net"
 	"sync"
-	"time"
 )
 
 type Server struct {
 	Ip string
 	Port int
 
-	//online user map
+	// online user map
 	OnlineMap map[string]*User
-	mapLock sync.RWMutex //add a lock
+	mapLock sync.RWMutex // add a lock
 	
-	//message broadcast channel
+	// message broadcast channel
 	Message chan string
 }
 
-//construct server
+// construct server
 func NewServer(ip string, port int) *Server {
 	server := &Server{
 		Ip: ip,
@@ -31,14 +30,14 @@ func NewServer(ip string, port int) *Server {
 	return server
 }
 
-//listen message broadcast channel's goroutine
-//once got message send to all online users
+// listen message broadcast channel's goroutine
+// once got message send to all online users
 func (t *Server) ListenMessager() {
 	for {
 		msg := <-t.Message
 
 		t.mapLock.Lock()
-		//for loop value, which are user object 
+		//mfor loop value, which are user objects 
 		for _, cli := range t.OnlineMap { 
 			cli.C <- msg
 		}
@@ -47,22 +46,17 @@ func (t *Server) ListenMessager() {
 }
 
 func (t *Server) BroadCast(user *User, msg string) {
-	sendMsg := "[" + user.Addr + "]" + user.Name + ": " + msg
+	sendMsg := "[" + user.Addr + "] " + user.Name + ": " + msg
 
 	t.Message <- sendMsg
 }
 
 func (t *Server) Handler(conn net.Conn) {
-	//...tasks for current connection
-	//fmt.Println("Connection successful")
+	// for current connection
 	user := NewUser(conn, t)
 
 	user.Online()
-
-	//check if user still active
-	isLive := make(chan bool)
-
-	//get user message
+	// get user message
 	go func() {
 		buf := make([]byte, 4096)
 		for {
@@ -71,66 +65,39 @@ func (t *Server) Handler(conn net.Conn) {
 				user.Offline()
 				return
 			}
-
 			if err != nil && err != io.EOF {
 				fmt.Println("Conn Read err", err)
 				return
 			}
-
-			//get user message delete '\n'
+			// get user message and delete '\n'
 			msg := string(buf[:n-1])
-
-			//user send message
+			// user send message
 			user.DoMessage(msg)
-
-			isLive <- true
 		}
 	}()
-
-	//set process state as blocked
-	for {
-		select {
-		case <-isLive:
-			//if user is active
-			//activate select and update timer
-
-		case <-time.After(time.Second * 60): //timer
-			//idle too long, time out
-			//force kick out user
-			user.SendMsg("* You are inactive for 1 minutes auto leave the chat *\n")
-
-			close(user.C)
-			conn.Close()
-
-			//exit Handler
-			return //runtime.Goexit()
-		}
-	}
 }
 
-
-//start server
+// start server
 func (t *Server) Start() {
-	//socket listen
+	// socket listener
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", t.Ip, t.Port))
 	if err != nil {
 		fmt.Println("net.Listen err:", err)
 		return
-	}
-	//close listen socket
+	}	
+	// close listen socket
 	defer listener.Close()
-
-	//start a listen goroutine
+	// start a listen goroutine
 	go t.ListenMessager()
 
 	for {
-		//accept
+		// accept
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Println("listener accept err:", err)
 			continue
 		}
-		//open a goroutine to do handler
+		// open a goroutine to do handler
 		go t.Handler(conn)
 	}
 }

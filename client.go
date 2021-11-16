@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 )
 
 type Client struct {
@@ -17,49 +18,51 @@ type Client struct {
 }
 
 func NewClient(serverIp string, serverPort int) *Client {
-	//construct client object
+	// construct client object
 	client := &Client{
 		ServerIp: serverIp,
 		ServerPort: serverPort,
 		flag: 999,
 	}
 
-	//connect to server
+	// connect to server
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", serverIp, serverPort))
 	if err != nil {
 		fmt.Println("net.Dial error:", err)
 		return nil
 	}
-
 	client.conn = conn
-
 	return client
 }
 
-//deal with server message, directly stdout
+// deal with server message
 func (client *Client) DealResponse() {
-	//once client.conn has message, copy to standard output, block listen
+	// once client.conn has message, copy to standard output, block listen
 	io.Copy(os.Stdout, client.conn)
 }
 
 func (client *Client) menu() bool {
-	var flag int
+	var f string
 
+	fmt.Println("")
 	fmt.Println("1 Public chat")
 	fmt.Println("2 Pravite chat")
 	fmt.Println("3 Update name")
 	fmt.Println("0 Exit")
+	fmt.Println("")
 
-	fmt.Scanln(&flag)
+	fmt.Scanln(&f)
 
-	if flag >= 0 && flag <= 3 {
+	valid := map[string]bool{"0": true, "1": true, "2": true, "3": true}
+
+	if valid[f] {
+		flag, _ := strconv.Atoi(f)
 		client.flag = flag
 		return true
 	} else {
 		fmt.Println("* Please enter a valid number (0-3) *")
 		return false
 	}
-
 }
 
 func (client *Client) SelectUsers() {
@@ -76,15 +79,17 @@ func (client *Client) PrivateChat() {
 	var chatMsg string
 
 	client.SelectUsers()
-	fmt.Println("* Please enter a username, type \"exit\" for exit *")
+	fmt.Println("* Username: \"exit\" *")
 	fmt.Scanln(&remoteName)
 
 	for remoteName != "exit" {
-		fmt.Println("* Please enter the content, type \"exit\" for exit *")
+		fmt.Println("* (Private) to " + remoteName + " *")
+		fmt.Println("* Don't type in space use \"-\" to replace *")
+		fmt.Println("* Key word: \"exit\" *")
 		fmt.Scanln(&chatMsg)
 
 		for chatMsg != "exit" {
-			//消息不为空则发送
+			// send if message not empty
 			if len(chatMsg) != 0 {
 				sendMsg := "to " + remoteName + " " + chatMsg + "\n\n"
 				_, err := client.conn.Write([]byte(sendMsg))
@@ -95,25 +100,29 @@ func (client *Client) PrivateChat() {
 			}
 
 			chatMsg = ""
-			fmt.Println("* Please enter the content, type \"exit\" for exit *")
+			fmt.Println("* (Private) to " + remoteName + " *")
+			fmt.Println("* Don't type in space use \"-\" to replace")
+			fmt.Println("* Key word: \"exit\" *")
 			fmt.Scanln(&chatMsg)
 		}
 
 		client.SelectUsers()
-		fmt.Println("* Please enter a username, type \"exit\" for exit *")
+		fmt.Println("* Please enter a username *")
+		fmt.Println("* Key word: \"exit\" *")
 		fmt.Scanln(&remoteName)
 	}
 }
 
 func (client *Client) PublicChat() {
-	//Hint user to tpye in message
 	var chatMsg string
 
-	fmt.Println("* Please enter the content, type \"exit\" for exit *")
+	fmt.Println("* (Public) *")
+	fmt.Println("* Don't type in space use \"-\" to replace")
+	fmt.Println("* Key word: \"who\" \"exit\" *")
 	fmt.Scanln(&chatMsg)
 
 	for chatMsg != "exit" {
-		//send to if message is not empty
+		// send if message is not empty
 		if len(chatMsg) != 0 {
 			sendMsg := chatMsg + "\n"
 			_, err := client.conn.Write([]byte(sendMsg))
@@ -124,15 +133,16 @@ func (client *Client) PublicChat() {
 		}
 
 		chatMsg = ""
-		fmt.Println("* Please enter the content, type \"exit\" for exit *")
+		fmt.Println("* (Public) *")
+		fmt.Println("* Don't type in space use \"-\" to replace")
+		fmt.Println("* Key word: \"who\" \"exit\" *")
 		fmt.Scanln(&chatMsg)
 	}
-
 }
 
 func (client *Client) UpdateName() bool {
 
-	fmt.Println("* Type the new name: *")
+	fmt.Println("* Type a new name: *")
 	fmt.Scanln(&client.Name)
 
 	sendMsg := "rename " + client.Name + "\n"
@@ -149,7 +159,6 @@ func (client *Client) Run() {
 		for client.menu() != true {
 		}
 
-		//according to user's choice
 		switch client.flag {
 		case 1:
 			client.PublicChat()
@@ -174,7 +183,7 @@ func init() {
 }
 
 func main() {
-	//parse commend
+	// parse commend
 	flag.Parse()
 
 	client := NewClient(serverIp, serverPort)
@@ -182,13 +191,10 @@ func main() {
 		fmt.Println("* Fail to connect to server *")
 		return
 	}
-
-	//create a goroutine to deal with server message
+	// create a goroutine to deal with server message
 	go client.DealResponse()
 
 	fmt.Println("* Success to connect to server *")
-
-	//start client side
+	// start client side
 	client.Run()
-
 }

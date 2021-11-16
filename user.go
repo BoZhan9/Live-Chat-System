@@ -8,14 +8,14 @@ import (
 type User struct {
 	Name string
 	Addr string
-	C chan string //check if there is a message
-	conn net.Conn //socket connection
+	C chan string // check if there is a message
+	conn net.Conn // socket connection
 
 	server *Server
 }
 
 func NewUser(conn net.Conn, server *Server) *User {
-	//get address
+	// get address
 	userAddr := conn.RemoteAddr().String()
 
 	user := &User{
@@ -25,33 +25,33 @@ func NewUser(conn net.Conn, server *Server) *User {
 		conn: conn,
 		server: server,
 	}
-	//start a tap goroutine
+	// start a listen goroutine
 	go user.ListenMessage()
 
 	return user
 }
 
-//user online
+// user online
 func (t *User) Online() {
 
-	//user online, add into map
+	// user online, add into map
 	t.server.mapLock.Lock()
 	t.server.OnlineMap[t.Name] = t
 	t.server.mapLock.Unlock()
 
-	//broadcast online
+	// broadcast online
 	t.server.BroadCast(t, "* Enter the chat *")
 }
 
-//user offline
+// user offline
 func (t *User) Offline() {
 
-	//user offline, delete from map
-	t.server.mapLock.Lock() //map thread-unsafe, add lock 
+	// user offline, delete from map
+	t.server.mapLock.Lock() // map thread-unsafe, add lock 
 	delete(t.server.OnlineMap, t.Name)
 	t.server.mapLock.Unlock()
 
-	//broadcast offline
+	// broadcast offline
 	t.server.BroadCast(t, "* Leave the chat *")
 
 }
@@ -60,22 +60,22 @@ func (t *User) SendMsg(msg string) {
 	t.conn.Write([]byte(msg))
 }
 
-//user send message
+// user send message
 func (t *User) DoMessage(msg string) {
-	//search online user
+	// search online user
 	if msg == "who" {
 		t.server.mapLock.Lock()
 		for _, user := range t.server.OnlineMap {
-			onlineMsg := "[" + user.Addr + "]" + user.Name + ":" + "* Online *\n"
+			onlineMsg := "[" + user.Addr + "] " + user.Name + " " + "* Online *\n"
 			t.SendMsg(onlineMsg)
 		}
 		t.server.mapLock.Unlock()
 
 	} else if len(msg) > 7 && msg[:7] == "rename " {
-		//format: rename Brian
+		// format: rename username
 		newName := strings.Split(msg, " ")[1]
 
-		//check if name already exist
+		// check if name already exist
 		_, ok := t.server.OnlineMap[newName]
 		if ok {
 			t.SendMsg("* Name already exist *\n")
@@ -90,40 +90,46 @@ func (t *User) DoMessage(msg string) {
 		}
 
 	} else if len(msg) > 4 && msg[:3] == "to " {
-		//format:  to Brian Hello
+		// format: to username content
 
-		//get receiver username
-		remoteName := strings.Split(msg, " ")[1]
+		command := strings.Split(msg, " ")
+		if len(command) < 3 {
+			t.SendMsg("* Format error, please use \"to username content\" *\n")
+			return
+		}	
+		// get username
+		remoteName := command[1]
 		if remoteName == "" {
-			t.SendMsg("* Format error, please use \"to Brian Hello\" *\n")
+			t.SendMsg("* No username, try again *\n")
 			return
 		}
 
-		//get user object by username
+		// get user object by username
 		remoteUser, ok := t.server.OnlineMap[remoteName]
 		if !ok {
 			t.SendMsg("* The user you want to send doesn't exist *\n")
+			t.SendMsg("* Press exit to go back *\n")
 			return
 		}
 
-		//get message content, send to user obkect
-		content := strings.Split(msg, " ")[2]
+		// get message content, send to user
+		content := command[2]
 		if content == "" {
-			t.SendMsg("* No content detect, type again *\n")
+			t.SendMsg("* No content, try again *\n")
 			return
 		}
-		remoteUser.SendMsg(t.Name + " said to you: " + content)
+		remoteUser.SendMsg(t.Name + " said to you: " + content + "\n")
 
 	} else {
 		t.server.BroadCast(t, msg)
 	}
 }
 
-//tap current user channel, once got message, directly send to user
+// listen current user channel, once got message, directly send to user
 func (t *User) ListenMessage() {
 	for {
-		msg := <-t.C //read connection message
+		msg := <-t.C // read connection message
 
-		t.conn.Write([]byte(msg + "\n")) //convert to binary array
+		t.conn.Write([]byte(msg + "\n")) // convert to binary array
 	}
 }
